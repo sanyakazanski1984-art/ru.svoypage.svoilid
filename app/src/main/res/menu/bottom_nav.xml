@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/nav_home"
+        android:icon="@android:drawable/ic_menu_view"
+        android:title="@string/nav_home" />
+
+    <item
+        android:id="@+id/nav_slots"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="@string/nav_slots" />
+
+    <item
+        android:id="@+id/nav_jobs"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:title="@string/nav_jobs" />
+
+    <item
+        android:id="@+id/nav_earnings"
+        android:icon="@android:drawable/ic_menu_save"
+        android:title="@string/nav_earnings" />
+
+    <item
+        android:id="@+id/nav_more"
+        android:icon="@android:drawable/ic_menu_more"
+        android:title="@string/nav_more" />
+</menu>
