@@ -23,6 +23,22 @@
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.SvoiLid">
 
+        <!-- Сервис -->
+        <service
+            android:name=".ProxyService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <!-- Boot Receiver -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        
         <activity
             android:name=".MainActivity"
             android:exported="true"
