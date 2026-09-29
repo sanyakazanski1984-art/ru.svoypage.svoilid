@@ -27,7 +27,8 @@
         <service
             android:name=".ProxyService"
             android:foregroundServiceType="dataSync"
-            android:exported="false" />
+            android:exported="false"
+            android:stopWithTask="false" />
 
         <!-- Boot Receiver -->
         <receiver
