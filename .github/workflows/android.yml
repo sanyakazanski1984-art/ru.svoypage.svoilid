@@ -24,6 +24,22 @@ jobs:
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
 
+      - name: Restore debug keystore from cache
+        id: cache-keystore
+        uses: actions/cache@v4
+        with:
+          path: debug.keystore
+          key: svoi-lid-debug-keystore-v1
+
+      - name: Generate debug keystore (only on first run)
+        if: steps.cache-keystore.outputs.cache-hit != 'true'
+        run: |
+          keytool -genkeypair -v -keystore debug.keystore \
+            -alias androiddebugkey \
+            -storepass android -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" -noprompt
+
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v3
         with:
