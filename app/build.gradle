@@ -6,6 +6,15 @@ android {
     namespace 'ru.svoypage.svoilid'
     compileSdk 34
 
+        signingConfigs {
+        debug {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    
     defaultConfig {
         applicationId "ru.svoypage.svoilid"
         minSdk 29
@@ -17,6 +26,7 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
+            signingConfig signingConfigs.debug
         }
         release {
             minifyEnabled false
