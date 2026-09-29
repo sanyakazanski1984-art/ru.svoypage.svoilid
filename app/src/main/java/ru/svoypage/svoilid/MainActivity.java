@@ -15,10 +15,14 @@ public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView bottomNav;
 
+    private static final int RC_NOTIF = 1001;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        requestRuntimePermissions();
 
         bottomNav = findViewById(R.id.bottomNav);
 
@@ -42,6 +46,18 @@ public class MainActivity extends AppCompatActivity {
 
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_home);
+        }
+    }
+
+        private void requestRuntimePermissions() {
+        java.util.List<String> need = new java.util.ArrayList<>();
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                   != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            need.add("android.permission.POST_NOTIFICATIONS");
+        }
+        if (!need.isEmpty()) {
+            requestPermissions(need.toArray(new String[0]), RC_NOTIF);
         }
     }
 }
