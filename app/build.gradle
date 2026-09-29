@@ -1,12 +1,10 @@
-plugins {
-    id 'com.android.application'
-}
+apply plugin: 'com.android.application'
 
 android {
     namespace 'ru.svoypage.svoilid'
     compileSdk 34
 
-        signingConfigs {
+    signingConfigs {
         debug {
             storeFile file('../debug.keystore')
             storePassword 'android'
@@ -14,7 +12,7 @@ android {
             keyPassword 'android'
         }
     }
-    
+
     defaultConfig {
         applicationId "ru.svoypage.svoilid"
         minSdk 29
@@ -41,22 +39,12 @@ android {
 }
 
 dependencies {
-    // Material Design 3 (кнопки, карточки, нижняя навигация)
     implementation 'com.google.android.material:material:1.11.0'
-
-    // AndroidX базовые
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.core:core:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.fragment:fragment:1.6.2'
-
-    // Защищённое хранилище для session_token
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
-
-    // Swipe-to-refresh
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-
-    // JSON (org.json уже есть в Android, но на всякий случай)
-    // implementation 'org.json:json:20231013'
 }
