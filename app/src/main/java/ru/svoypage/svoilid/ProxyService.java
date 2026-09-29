@@ -68,12 +68,15 @@ public class ProxyService extends Service {
         addLog("Service создан");
     }
 
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(NOTIF_ID, buildNotification("Подготовка…"));
-        if (!isRunning) startWork();
-        return START_STICKY;
+@Override
+public int onStartCommand(Intent intent, int flags, int startId) {
+    startForeground(NOTIF_ID, buildNotification("Подготовка…"));
+    if (!isRunning) {
+        // ВАЖНО: startWork() делает HTTP-запросы, нельзя в главном потоке
+        new Thread(this::startWork, "startWork").start();
     }
+    return START_STICKY;
+}
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
