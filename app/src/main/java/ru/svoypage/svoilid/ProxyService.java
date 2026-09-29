@@ -122,6 +122,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         updateNotification();
 
         startHeartbeatLoop();
+        startStateLoop();
         startJobsLoop();
     }
 
@@ -221,6 +222,28 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     //  JOBS
     // =====================================================================
 
+    /** Раз в 15 сек обновляем State.me — для UI. */
+    private void startStateLoop() {
+        new Thread(() -> {
+            while (!stopFlag && token != null) {
+                try {
+                    HttpResult r = httpPost(BASE + "me.php", new HashMap<>(), token);
+                    if (r.code == 200 && r.body != null) {
+                        JSONObject j = new JSONObject(r.body);
+                        if (j.optBoolean("ok", false)) {
+                            State.me = j;
+                            State.meUpdatedAt = System.currentTimeMillis();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "state: " + e.getMessage());
+                }
+                SystemClock.sleep(15_000);
+            }
+        }, "state").start();
+    }
+
+    
     private void startJobsLoop() {
         jobsThread = new Thread(() -> {
             while (!stopFlag && token != null) {
@@ -348,6 +371,19 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 addLog("❌ Job #" + jobId + ": " + (errCode != null ? errCode : "unknown"));
             }
             currentAction = "";
+
+            // Обновляем State сразу — экраны увидят изменения
+            try {
+                HttpResult me = httpPost(BASE + "me.php", new HashMap<>(), token);
+                if (me.code == 200 && me.body != null) {
+                    JSONObject mj = new JSONObject(me.body);
+                    if (mj.optBoolean("ok", false)) {
+                        State.me = mj;
+                        State.meUpdatedAt = System.currentTimeMillis();
+                    }
+                }
+            } catch (Exception ignored) {}
+
             updateNotification();
 
         } catch (Exception e) {
