@@ -163,15 +163,21 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             HttpResult r = httpPost(BASE + "register.php", p, null);
             addLog("register → HTTP " + r.code);
 
-            if (r.code == 200 && r.body != null) {
-                JSONObject j = new JSONObject(r.body);
-                if (j.optBoolean("ok", false)) {
-                    token = j.optString("session_token", null);
-                    session.setToken(token);
-                    session.setDeviceId(j.optInt("device_id", 0));
-                    addLog("✅ Токен получен");
-                } else {
-                    addLog("❌ " + j.optString("error", "unknown"));
+            if (r.body != null) {
+                try {
+                    JSONObject j = new JSONObject(r.body);
+                    if (j.optBoolean("ok", false)) {
+                        token = j.optString("session_token", null);
+                        session.setToken(token);
+                        session.setDeviceId(j.optInt("device_id", 0));
+                        addLog("✅ Токен получен");
+                    } else {
+                        String errCode = j.optString("error_code", "");
+                        String errMsg  = j.optString("error", "unknown");
+                        addLog("❌ " + errMsg + (errCode.isEmpty() ? "" : " [" + errCode + "]"));
+                    }
+                } catch (Exception e) {
+                    addLog("❌ Парсинг: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
