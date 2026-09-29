@@ -153,12 +153,22 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             String deviceName = android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL;
             String version = "1.0.0";
 
+            String androidId = null;
+            try {
+                androidId = android.provider.Settings.Secure.getString(
+                    getContentResolver(),
+                    android.provider.Settings.Secure.ANDROID_ID
+                );
+            } catch (Exception ignored) {}
+            if (androidId == null) androidId = "";
+
             Map<String, String> p = new HashMap<>();
             p.put("device_uid",  deviceUid);
             p.put("api_key",     apiKey);
             p.put("device_name", deviceName);
             p.put("model",       android.os.Build.MODEL);
             p.put("app_version", version);
+            p.put("android_id", androidId);
 
             HttpResult r = httpPost(BASE + "register.php", p, null);
             addLog("register → HTTP " + r.code);
