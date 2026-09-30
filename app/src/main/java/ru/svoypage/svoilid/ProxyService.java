@@ -44,6 +44,9 @@ public class ProxyService extends Service {
     // ===== Snapshot для UI (читается HomeFragment) =====
     public static volatile boolean isRunning = false;
     public static volatile boolean isPaused  = false;
+        /** Какие слоты прямо сейчас выполняют job (мгновенный флаг для UI). */
+    public static final java.util.Set<Integer> busySlots =
+        java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
     public static volatile String  statusText = "Остановлено";
     public static volatile int     todayDone  = 0;
     public static volatile int     todayFailed = 0;
@@ -383,6 +386,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
 
             addLog("▶ Job #" + jobId + " (" + steps.length() + " шаг.)");
             currentAction = "Выполняется #" + jobId;
+            busySlots.add(slotId);
             updateNotification();
 
             long t0 = System.currentTimeMillis();
@@ -470,6 +474,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
 
         } catch (Exception e) {
             addLog("❌ processSlot crash: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        } finally {
+            busySlots.remove(slotId);
         }
     }
 
