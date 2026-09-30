@@ -130,8 +130,8 @@ public class EarningsFragment extends Fragment {
 
         // Устройств в пуле — приблизительно, из общего числа устройств в пуле,
         // но API это не отдаёт. Показываем просто число операций.
-        int ops = r.optInt("operations_total", 0);
-        tvPoolDevices.setText(String.valueOf(ops));
+int poolDev = r.optInt("pool_devices", 0);
+tvPoolDevices.setText(String.valueOf(poolDev));
 
         // История выплат
         payoutsContainer.removeAllViews();
