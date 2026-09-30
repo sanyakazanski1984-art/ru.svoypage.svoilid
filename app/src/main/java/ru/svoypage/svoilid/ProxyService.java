@@ -376,7 +376,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 addLog("❌ Job #" + jobId + ": steps пустой (сервер не построил VK-запрос)");
                 // Сообщаем серверу о провале, чтобы слот освободился
                 reportJob(jobId, "failed", 0, null, "no_steps",
-                          "server returned empty steps", 0);
+                          "server returned empty steps", 0,
+                          new HashMap<>());
                 return;
             }
 
@@ -410,7 +411,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             } catch (Exception e) {
                 addLog("❌ Ошибка: " + e.getMessage());
                 reportJob(jobId, "failed", 0, null, "network", e.getMessage(),
-                          (int)(System.currentTimeMillis() - t0));
+                          (int)(System.currentTimeMillis() - t0),
+                          jobVars);
                 todayFailed++;
                 currentAction = "";
                 return;
@@ -441,7 +443,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 }
             }
 
-            reportJob(jobId, status, last.code, last.body, errCode, errMsg, durationMs);
+            reportJob(jobId, status, last.code, last.body, errCode, errMsg, durationMs, jobVars);
 
             if ("success".equals(status)) {
                 todayDone++;
@@ -570,7 +572,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     //  ОТЧЁТ О РЕЗУЛЬТАТЕ
     // =====================================================================
 
-    private void reportJob(int jobId, String status, int code, String body,
+       private void reportJob(int jobId, String status, int code, String body,
                            String errCode, String errMsg, int durationMs,
                            Map<String, String> vars) {
         try {
@@ -583,14 +585,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             if (errCode != null) p.put("error_code",   errCode);
             if (errMsg != null)  p.put("error_message", truncate(errMsg, 500));
 
-            HttpResult r = httpPost(BASE + "jobs_result.php", p, token);
-            if (r.code == 200 && r.body != null) {
-                JSONObject j = new JSONObject(r.body);
-                if (!j.optBoolean("ok", false)) {
-                    addLog("⚠️ jobs_result: " + j.optString("error", ""));
-                }
-            }
-
+            // ВАЖНО: job_vars кладём в p ДО отправки POST.
             if (vars != null && !vars.isEmpty()) {
                 StringBuilder sb = new StringBuilder("{");
                 boolean first = true;
@@ -602,6 +597,14 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 }
                 sb.append('}');
                 p.put("job_vars", sb.toString());
+            }
+
+            HttpResult r = httpPost(BASE + "jobs_result.php", p, token);
+            if (r.code == 200 && r.body != null) {
+                JSONObject j = new JSONObject(r.body);
+                if (!j.optBoolean("ok", false)) {
+                    addLog("⚠️ jobs_result: " + j.optString("error", ""));
+                }
             }
         } catch (Exception e) {
             Log.w(TAG, "reportJob: " + e.getMessage());
