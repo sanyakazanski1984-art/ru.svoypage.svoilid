@@ -60,7 +60,8 @@ public class ProxyService extends Service {
     private Thread heartbeatThread;
     private Thread jobsThread;
 
-        private long lastSlotsLog = 0;
+    private long lastSlotsLog = 0;
+    private long lastClaimLog = 0;
 
 
     @Override
@@ -322,17 +323,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 if (!"occupied".equals(state)) continue;
                 if ("busy".equals(slot.optString("status"))) continue;
 
-                int slotId = slot.optInt("index", 0);   // индекс слота
-                if (slotId <= 0) continue;
-
-                // Нужно получить slot_id — берём из "slot_id" в ответе
-                // (в me.php возвращаем index; но для claim нужен именно slot_id)
-                // Запрос /me.php должен возвращать slot_id. Проверим и используем.
                 int realSlotId = slot.optInt("slot_id", 0);
-                if (realSlotId <= 0) {
-                    // Фолбэк: попробуем по index через query к слоту
-                    continue;
-                }
+                if (realSlotId <= 0) continue;
 
                 processSlot(realSlotId);
             }
