@@ -55,7 +55,7 @@ public class SlotsFragment extends Fragment {
         tick = new Runnable() {
             @Override public void run() {
                 render();
-                uiHandler.postDelayed(this, 1000);
+                uiHandler.postDelayed(this, 500);
             }
         };
         uiHandler.post(tick);
@@ -130,10 +130,17 @@ public class SlotsFragment extends Fragment {
         TextView tvSub     = v.findViewById(R.id.tvAccountSub);
         TextView tvHint    = v.findViewById(R.id.tvAccountHint);
 
+        int slotId  = s.optInt("slot_id", 0);
         int index   = s.optInt("index", 0);
         String st   = s.optString("status", "free");
         String state= s.optString("state", "free");
         boolean own = s.optBoolean("is_own", false);
+
+        // Мгновенный локальный флаг: если сервис прямо сейчас выполняет job на этом слоте —
+        // рисуем "ВЫПОЛНЯЕТ", не дожидаясь обновления State.me.
+        if (slotId > 0 && ru.svoypage.svoilid.ProxyService.busySlots.contains(slotId)) {
+            st = "busy";
+        }
 
         tvIndex.setText("СЛОТ " + index);
 
@@ -143,7 +150,7 @@ public class SlotsFragment extends Fragment {
             tvStatus.setTextColor(0xFF4cd964);
             tvStatus.setBackgroundColor(0x1a4cd964);
         } else if ("busy".equals(st)) {
-            tvStatus.setText("ЗАНЯТ");
+            tvStatus.setText("ВЫПОЛНЯЕТ");
             tvStatus.setTextColor(0xFFe8920d);
             tvStatus.setBackgroundColor(0x1ae8920d);
         } else if ("error".equals(st)) {
