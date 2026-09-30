@@ -54,7 +54,27 @@ public class MoreFragment extends Fragment {
 
         swPool.setOnCheckedChangeListener((btn, checked) -> {
             if (suppressListeners) return;
-            updateSettings("is_pool_optin", checked);
+            if (checked) {
+                // Включение — без диалога
+                updateSettings("is_pool_optin", true);
+                return;
+            }
+            // Выключение — предупреждаем про активные аренды
+            new AlertDialog.Builder(requireContext())
+                .setTitle("Отключить общий пул?")
+                .setMessage("Свободные слоты перестанут сдаваться в аренду.\n\n"
+                          + "Если сейчас на ваших слотах работают чужие аккаунты — "
+                          + "система попробует перенести их на другие устройства. "
+                          + "Если свободных слотов в пуле нет, аренда приостановится.")
+                .setPositiveButton("Отключить", (d, w) -> {
+                    updateSettings("is_pool_optin", false);
+                })
+                .setNegativeButton("Отмена", (d, w) -> {
+                    suppressListeners = true;
+                    swPool.setChecked(true);
+                    suppressListeners = false;
+                })
+                .show();
         });
     }
 
@@ -118,13 +138,24 @@ public class MoreFragment extends Fragment {
                 if (key.equals("is_paused")) swPause.setChecked(!value);
                 else                          swPool.setChecked(!value);
                 suppressListeners = false;
-            } else {
-                Toast.makeText(requireContext(),
-                    key.equals("is_paused")
-                        ? (value ? "Поставлено на паузу" : "Возобновлено")
-                        : (value ? "Общий пул включён" : "Общий пул выключен"),
-                    Toast.LENGTH_SHORT).show();
+                return;
             }
+
+            // Если сервер мигрировал аренды — показать провайдеру
+            int migrated = resp != null ? resp.optInt("migrated_rentals", 0) : 0;
+            int suspended = resp != null ? resp.optInt("suspended_rentals", 0) : 0;
+
+            String msg;
+            if (key.equals("is_paused")) {
+                msg = value ? "Поставлено на паузу" : "Возобновлено";
+            } else {
+                msg = value ? "Общий пул включён" : "Общий пул выключен";
+            }
+            if (migrated > 0)  msg += ". Аренд перенесено: " + migrated;
+            if (suspended > 0) msg += ". Приостановлено: " + suspended;
+
+            Toast.makeText(requireContext(), msg,
+                migrated > 0 || suspended > 0 ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
         });
     }
 
