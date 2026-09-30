@@ -340,12 +340,17 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             p.put("slot_id", String.valueOf(slotId));
 
             HttpResult r = httpPost(BASE + "jobs_claim.php", p, token);
-            if (r.code != 200 || r.body == null) return;
+            if (r.body == null) {
+                addLog("claim slot=" + slotId + ": пустой ответ");
+                return;
+            }
 
             JSONObject j = new JSONObject(r.body);
-            if (!j.optBoolean("ok", false)) {
-                String err = j.optString("error", "");
-                addLog("claim slot=" + slotId + ": " + err);
+
+            if (r.code != 200 || !j.optBoolean("ok", false)) {
+                String errCode = j.optString("error_code", "");
+                String errMsg  = j.optString("error", "");
+                addLog("claim slot=" + slotId + " HTTP " + r.code + ": " + errMsg + (errCode.isEmpty()?"":" ["+errCode+"]"));
                 return;
             }
 
@@ -362,7 +367,18 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             int jobId = job.optInt("id", 0);
             int leaseSec = job.optInt("lease_seconds", 300);
             JSONArray steps = job.optJSONArray("steps");
-            if (jobId <= 0 || steps == null || steps.length() == 0) return;
+
+            if (jobId <= 0) {
+                addLog("claim slot=" + slotId + ": job без id");
+                return;
+            }
+            if (steps == null || steps.length() == 0) {
+                addLog("❌ Job #" + jobId + ": steps пустой (сервер не построил VK-запрос)");
+                // Сообщаем серверу о провале, чтобы слот освободился
+                reportJob(jobId, "failed", 0, null, "no_steps",
+                          "server returned empty steps", 0);
+                return;
+            }
 
             addLog("▶ Job #" + jobId + " (" + steps.length() + " шаг.)");
             currentAction = "Выполняется #" + jobId;
@@ -432,7 +448,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             updateNotification();
 
         } catch (Exception e) {
-            Log.w(TAG, "processSlot: " + e.getMessage());
+            addLog("❌ processSlot crash: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 
