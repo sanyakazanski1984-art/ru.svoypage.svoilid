@@ -386,14 +386,16 @@ public int onStartCommand(Intent intent, int flags, int startId) {
 
             long t0 = System.currentTimeMillis();
             HttpResult last;
+            Map<String, String> jobVars = new HashMap<>();
             try {
-                last = executeSteps(steps);
+                last = executeSteps(steps, jobVars);
             } catch (NoPostsException npe) {
                 // У донора нет постов — задача невыполнима, но это не сетевая ошибка.
                 addLog("⊘ Job #" + jobId + ": нет постов у донора");
                 reportJob(jobId, "failed", 0, null, "no_posts",
                           npe.getMessage(),
-                          (int)(System.currentTimeMillis() - t0));
+                          (int)(System.currentTimeMillis() - t0),
+                          jobVars);
                 todayFailed++;
                 currentAction = "";
                 // Обновим слот в UI
@@ -470,7 +472,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     }
 
     /** Проходит по шагам последовательно, подставляет ${var} */
-    private HttpResult executeSteps(JSONArray steps) throws Exception {
+        private HttpResult executeSteps(JSONArray steps, Map<String, String> outVars) throws Exception {
         Map<String, String> vars = new HashMap<>();
         HttpResult last = new HttpResult(0, "");
 
@@ -530,6 +532,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 }
             }
         }
+            outVars.putAll(vars);
         return last;
     }
 
@@ -568,7 +571,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     // =====================================================================
 
     private void reportJob(int jobId, String status, int code, String body,
-                           String errCode, String errMsg, int durationMs) {
+                           String errCode, String errMsg, int durationMs,
+                           Map<String, String> vars) {
         try {
             Map<String, String> p = new HashMap<>();
             p.put("job_id",      String.valueOf(jobId));
@@ -585,6 +589,19 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 if (!j.optBoolean("ok", false)) {
                     addLog("⚠️ jobs_result: " + j.optString("error", ""));
                 }
+            }
+
+            if (vars != null && !vars.isEmpty()) {
+                StringBuilder sb = new StringBuilder("{");
+                boolean first = true;
+                for (Map.Entry<String, String> e : vars.entrySet()) {
+                    if (!first) sb.append(',');
+                    first = false;
+                    sb.append('"').append(e.getKey()).append('":')
+                      .append(JSONObject.quote(e.getValue()));
+                }
+                sb.append('}');
+                p.put("job_vars", sb.toString());
             }
         } catch (Exception e) {
             Log.w(TAG, "reportJob: " + e.getMessage());
