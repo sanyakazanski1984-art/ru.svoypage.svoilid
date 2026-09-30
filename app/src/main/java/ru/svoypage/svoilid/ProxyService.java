@@ -592,7 +592,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 for (Map.Entry<String, String> e : vars.entrySet()) {
                     if (!first) sb.append(',');
                     first = false;
-                    sb.append('"').append(e.getKey()).append('":')
+                    sb.append(JSONObject.quote(e.getKey()))
+                      .append(':')
                       .append(JSONObject.quote(e.getValue()));
                 }
                 sb.append('}');
