@@ -177,10 +177,11 @@ public class SlotsFragment extends Fragment {
             tvSub.setText("@" + vkId);
             tvHint.setVisibility(View.GONE);
         } else {
-            // Чужое — скрываем детали
-            tvTitle.setText("Занято");
-            tvSub.setText("Аккаунт недоступен для просмотра");
-            tvHint.setVisibility(View.GONE);
+            // Чужое — аренда. Скрываем детали, показываем что это нормальный режим.
+            tvTitle.setText("🔒 Арендован клиентом");
+            tvSub.setText("С вашего слота работает чужой аккаунт");
+            tvHint.setVisibility(View.VISIBLE);
+            tvHint.setText("Вы получаете 0,03 ₽ за каждую задачу — независимо от результата");
         }
 
         return v;
