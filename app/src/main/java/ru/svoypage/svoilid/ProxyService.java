@@ -60,6 +60,9 @@ public class ProxyService extends Service {
     private Thread heartbeatThread;
     private Thread jobsThread;
 
+        private long lastSlotsLog = 0;
+
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -121,6 +124,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         statusText = "Работает";
         updateNotification();
 
+        addLog("▶ Старт heartbeat / state / jobs");
         startHeartbeatLoop();
         startStateLoop();
         startJobsLoop();
@@ -211,6 +215,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                     if (r.code == 200 && r.body != null) {
                         JSONObject j = new JSONObject(r.body);
                         if (j.optBoolean("ok", false)) {
+                            boolean wasPaused = isPaused;
                             isPaused = j.optBoolean("is_paused", false);
                             if (isPaused) {
                                 statusText = "На паузе";
@@ -218,6 +223,9 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                                 statusText = "Работает";
                             }
                             updateNotification();
+                            if (wasPaused != isPaused) {
+                                addLog("Heartbeat: is_paused=" + isPaused);
+                            }
                         } else if ("unauthorized".equals(j.optString("error_code"))) {
                             addLog("⚠️ Токен истёк — нужна перерегистрация");
                             session.clearToken();
@@ -286,7 +294,25 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             if (!meJson.optBoolean("ok")) return;
 
             JSONArray slots = meJson.optJSONArray("slots");
-            if (slots == null) return;
+            if (slots == null) {
+                addLog("me: слотов нет");
+                return;
+            }
+
+            int foundOccupied = 0;
+            int foundFree = 0;
+            for (int i = 0; i < slots.length(); i++) {
+                JSONObject s = slots.getJSONObject(i);
+                if ("occupied".equals(s.optString("state"))) {
+                    foundOccupied++;
+                    if ("free".equals(s.optString("status"))) foundFree++;
+                }
+            }
+            // Логируем раз в минуту, чтобы не спамить
+            if (System.currentTimeMillis() - lastSlotsLog > 60_000) {
+                lastSlotsLog = System.currentTimeMillis();
+                addLog("Слоты: занято " + foundOccupied + ", готовы " + foundFree);
+            }
 
             for (int i = 0; i < slots.length(); i++) {
                 if (stopFlag || isPaused) return;
@@ -325,10 +351,21 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             if (r.code != 200 || r.body == null) return;
 
             JSONObject j = new JSONObject(r.body);
-            if (!j.optBoolean("ok", false)) return;
+            if (!j.optBoolean("ok", false)) {
+                String err = j.optString("error", "");
+                addLog("claim slot=" + slotId + ": " + err);
+                return;
+            }
 
             JSONObject job = j.optJSONObject("job");
-            if (job == null) return;   // нет задач — это нормально
+            if (job == null) {
+                // нет задач — тихо, раз в 30 сек
+                if (System.currentTimeMillis() - lastClaimLog > 30_000) {
+                    lastClaimLog = System.currentTimeMillis();
+                    addLog("claim slot=" + slotId + ": нет задач");
+                }
+                return;
+            }
 
             int jobId = job.optInt("id", 0);
             int leaseSec = job.optInt("lease_seconds", 300);
