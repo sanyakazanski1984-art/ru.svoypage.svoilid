@@ -1,10 +1,14 @@
 package ru.svoypage.svoilid;
 
 import android.os.Bundle;
+
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
+
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+
 import ru.svoypage.svoilid.ui.home.HomeFragment;
 import ru.svoypage.svoilid.ui.slots.SlotsFragment;
 import ru.svoypage.svoilid.ui.jobs.JobsFragment;
@@ -13,9 +17,8 @@ import ru.svoypage.svoilid.ui.more.MoreFragment;
 
 public class MainActivity extends AppCompatActivity {
 
-    private BottomNavigationView bottomNav;
-
     private static final int RC_NOTIF = 1001;
+    private BottomNavigationView bottomNav;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,6 +30,10 @@ public class MainActivity extends AppCompatActivity {
         bottomNav = findViewById(R.id.bottomNav);
 
         bottomNav.setOnItemSelectedListener(item -> {
+            // Если открыт суб-фрагмент (в backstack) — очищаем стек
+            getSupportFragmentManager().popBackStackImmediate(null,
+                androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE);
+
             Fragment f = null;
             int id = item.getItemId();
             if (id == R.id.nav_home)          f = new HomeFragment();
@@ -44,12 +51,26 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
+        // Обработка аппаратной кнопки "назад":
+        // если открыт суб-экран — вернуться к More, иначе — стандартное поведение.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (getSupportFragmentManager().getBackStackEntryCount() > 0) {
+                    getSupportFragmentManager().popBackStack();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
+
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_home);
         }
     }
 
-        private void requestRuntimePermissions() {
+    private void requestRuntimePermissions() {
         java.util.List<String> need = new java.util.ArrayList<>();
         if (android.os.Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
