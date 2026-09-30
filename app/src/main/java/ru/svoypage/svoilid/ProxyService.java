@@ -483,14 +483,34 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             if (ex != null && last.body != null) {
                 try {
                     JSONObject resp = new JSONObject(last.body);
+
+                    // Проверка: если у VK вернулся error на шаге extract — сразу падаем
+                    if (resp.has("error")) {
+                        throw new Exception("vk_step_error: "
+                            + resp.getJSONObject("error").optString("error_msg", ""));
+                    }
+
                     Iterator<String> it = ex.keys();
                     while (it.hasNext()) {
                         String key = it.next();
                         String path = ex.optString(key, "");
                         String val = jsonPath(resp, path);
-                        if (val != null) vars.put(key, val);
+
+                        if (val == null || val.isEmpty()) {
+                            // Не смогли извлечь — дальше идти нет смысла.
+                            // Помечаем как no_posts — это нормальная ситуация
+                            // (у донора нет постов/закрытая стена).
+                            throw new NoPostsException("extract '" + key + "' empty, path=" + path);
+                        }
+                        vars.put(key, val);
                     }
-                } catch (Exception ignored) {}
+                } catch (NoPostsException npe) {
+                    throw npe;
+                } catch (Exception ex2) {
+                    if (ex2 instanceof NoPostsException) throw ex2;
+                    // Любая другая — тоже прерываем шаг
+                    throw new Exception("extract_failed: " + ex2.getMessage());
+                }
             }
         }
         return last;
@@ -714,5 +734,10 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     private static String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() <= max ? s : s.substring(0, max) + "…(truncated)";
+    }
+
+        /** Специальный случай: у донора нет постов — задача валидна, но невыполнима. */
+    private static class NoPostsException extends Exception {
+        NoPostsException(String msg) { super(msg); }
     }
 }
