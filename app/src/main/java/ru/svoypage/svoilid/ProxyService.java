@@ -388,6 +388,23 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             HttpResult last;
             try {
                 last = executeSteps(steps);
+            } catch (NoPostsException npe) {
+                // У донора нет постов — задача невыполнима, но это не сетевая ошибка.
+                addLog("⊘ Job #" + jobId + ": нет постов у донора");
+                reportJob(jobId, "failed", 0, null, "no_posts",
+                          npe.getMessage(),
+                          (int)(System.currentTimeMillis() - t0));
+                todayFailed++;
+                currentAction = "";
+                // Обновим слот в UI
+                try {
+                    HttpResult me = httpPost(BASE + "me.php", new HashMap<>(), token);
+                    if (me.code == 200 && me.body != null) {
+                        JSONObject mj = new JSONObject(me.body);
+                        if (mj.optBoolean("ok", false)) State.me = mj;
+                    }
+                } catch (Exception ignored) {}
+                return;
             } catch (Exception e) {
                 addLog("❌ Ошибка: " + e.getMessage());
                 reportJob(jobId, "failed", 0, null, "network", e.getMessage(),
@@ -516,10 +533,14 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         return last;
     }
 
-    private String substitute(String s, Map<String, String> vars) {
+    private String substitute(String s, Map<String, String> vars) throws Exception {
         if (s == null) return null;
         for (Map.Entry<String, String> e : vars.entrySet()) {
             s = s.replace("${" + e.getKey() + "}", e.getValue());
+        }
+        // Если осталась неразрешённая переменная — не отправляем мусор в VK.
+        if (s.contains("${")) {
+            throw new NoPostsException("unresolved variable in url/body: " + s.substring(0, Math.min(80, s.length())));
         }
         return s;
     }
