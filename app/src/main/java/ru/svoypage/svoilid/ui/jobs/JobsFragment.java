@@ -143,7 +143,7 @@ public class JobsFragment extends Fragment {
         }
     }
 
-    private View buildJobCard(JSONObject j, String mode) throws Exception {
+       private View buildJobCard(JSONObject j, String mode) throws Exception {
         View v = getLayoutInflater().inflate(R.layout.item_job, container, false);
 
         TextView tvIcon    = v.findViewById(R.id.tvJobIcon);
@@ -156,14 +156,16 @@ public class JobsFragment extends Fragment {
         String targetKind = j.optString("target_kind", "");
         String status     = j.optString("status", "pending");
         boolean own       = j.optBoolean("is_own", true);
+        int     jobId     = j.optInt("id", 0);
+        int     slotIndex = j.optInt("slot_index", 0);
 
-        // Иконка и заголовок
-        String emoji = "•";
+        // ===== Иконка и заголовок =====
+        String emoji;
         String title;
-        if (!own || "pool".equals(mode)) {
-            // Обезличенное
-            title = "Действие";
+        if (!own) {
+            // Чужая (арендованная) задача — обезличено.
             emoji = "🔒";
+            title = "Арендованная задача";
         } else {
             switch (actionType) {
                 case "like":    emoji = "❤️"; title = "Лайк"; break;
@@ -171,31 +173,39 @@ public class JobsFragment extends Fragment {
                 case "friend":  emoji = "👤"; title = "Заявка в друзья"; break;
                 case "message": emoji = "✉️"; title = "Сообщение"; break;
                 case "invite":  emoji = "⊕"; title = "Приглашение"; break;
-                default:        emoji = "•"; title = actionType;
+                default:        emoji = "•";  title = actionType;
             }
         }
-
         tvIcon.setText(emoji);
         tvTitle.setText(title);
 
-        // Подзаголовок
+        // ===== Подзаголовок =====
         StringBuilder sub = new StringBuilder();
+
+        // Тип цели — только для СВОИХ задач
         if (own && !targetKind.isEmpty()) {
-            if ("post".equals(targetKind))       sub.append("пост");
+            if ("post".equals(targetKind))          sub.append("пост");
             else if ("old_post".equals(targetKind)) sub.append("старый пост");
-            else if ("avatar".equals(targetKind)) sub.append("аватар");
-            else if ("wall".equals(targetKind))   sub.append("стена");
-            else if ("direct".equals(targetKind)) sub.append("директ");
-            else if ("group".equals(targetKind))  sub.append("группа");
+            else if ("avatar".equals(targetKind))   sub.append("аватар");
+            else if ("wall".equals(targetKind))     sub.append("стена");
+            else if ("direct".equals(targetKind))   sub.append("директ");
+            else if ("group".equals(targetKind))    sub.append("группа");
         }
-        int slotIndex = j.optInt("slot_index", 0);
+
+        // Номер слота — показываем всегда (это своё устройство, не sensitive)
         if (slotIndex > 0) {
             if (sub.length() > 0) sub.append(" · ");
             sub.append("слот ").append(slotIndex);
         }
+
+        // ID задачи — показываем ВСЕГДА (нужен для поддержки и для ТЗ «#1234»)
+        if (jobId > 0) {
+            if (sub.length() > 0) sub.append(" · ");
+            sub.append("#").append(jobId);
+        }
         tvSub.setText(sub.toString());
 
-        // Статус
+        // ===== Статус (без изменений) =====
         switch (status) {
             case "success":
                 tvStatus.setText("✓ УСПЕХ");
@@ -230,7 +240,7 @@ public class JobsFragment extends Fragment {
                 tvStatus.setBackgroundColor(0x148b95a8);
         }
 
-        // Время
+        // ===== Время =====
         String completedAt = j.optString("completed_at", "");
         String createdAt   = j.optString("created_at", "");
         tvTime.setText(formatTime(completedAt.isEmpty() ? createdAt : completedAt));
