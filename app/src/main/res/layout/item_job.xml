@@ -42,7 +42,9 @@
                 android:text="Лайк"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/tvJobSub"
