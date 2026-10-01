@@ -717,7 +717,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         String line = "Сегодня: " + todayDone + " задач · " + todayFailed + " ошибок";
         return b.setContentTitle("СВОЙ.ЛИД · " + text)
                 .setContentText(line)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_stat_svoi_lid)
                 .setContentIntent(pi)
                 .setOngoing(true)
                 .setPriority(Notification.PRIORITY_LOW)
