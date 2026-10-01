@@ -32,7 +32,7 @@ import java.util.Map;
 public class ProxyService extends Service {
 
     private static final String TAG = "SvoiLidSvc";
-    private static final String CHANNEL_ID = "svoi_lid_channel";
+    private static final String CHANNEL_ID = "svoi_lid_channel_v2";
     private static final int NOTIF_ID = 1;
 
     private static final String BASE = ApiClient.BASE;
