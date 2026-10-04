@@ -69,26 +69,38 @@ public class NotificationsFragment extends Fragment {
         });
     }
 
-    private void render(JSONObject r) {
-        container.removeAllViews();
-        JSONArray list = r.optJSONArray("notifications");
-        if (list == null || list.length() == 0) {
-            TextView empty = new TextView(requireContext());
-            empty.setText("Уведомлений пока нет");
-            empty.setTextColor(0xFF5c6370);
-            empty.setTextSize(13);
-            empty.setPadding(0, 60, 0, 0);
-            empty.setGravity(android.view.Gravity.CENTER);
-            container.addView(empty);
-            return;
-        }
-
-        for (int i = 0; i < list.length(); i++) {
-            try {
-                container.addView(buildRow(list.getJSONObject(i)));
-            } catch (Exception ignored) {}
-        }
+ private void render(JSONObject r) {
+    container.removeAllViews();
+    JSONArray list = r.optJSONArray("notifications");
+    if (list == null || list.length() == 0) {
+        TextView empty = new TextView(requireContext());
+        empty.setText("Уведомлений пока нет");
+        empty.setTextColor(0xFF5c6370);
+        empty.setTextSize(13);
+        empty.setPadding(0, 60, 0, 0);
+        empty.setGravity(android.view.Gravity.CENTER);
+        container.addView(empty);
+        return;
     }
+
+    // ИСПРАВЛЕНО: новые уведомления — сверху.
+    // Сортируем по id DESC (id — автоинкремент или timestamp,
+    // в любом случае чем больше id, тем свежее запись).
+    java.util.List<JSONObject> sorted = new java.util.ArrayList<>();
+    for (int i = 0; i < list.length(); i++) {
+        try { sorted.add(list.getJSONObject(i)); } catch (Exception ignored) {}
+    }
+    sorted.sort((a, b) -> Integer.compare(
+        b.optInt("id", 0),
+        a.optInt("id", 0)
+    ));
+
+    for (JSONObject n : sorted) {
+        try {
+            container.addView(buildRow(n));
+        } catch (Exception ignored) {}
+    }
+}
 
     private View buildRow(JSONObject n) throws Exception {
         View v = getLayoutInflater().inflate(R.layout.item_notification, container, false);
