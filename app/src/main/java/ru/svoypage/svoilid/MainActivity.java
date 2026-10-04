@@ -65,6 +65,26 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+if (Build.VERSION.SDK_INT >= 31) {
+    android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+    if (am != null && !am.canScheduleExactAlarms()) {
+        Intent i = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+        i.setData(android.net.Uri.parse("package:" + getPackageName()));
+        startActivity(i);
+    }
+}
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+    android.os.PowerManager pm =
+        (android.os.PowerManager) getSystemService(POWER_SERVICE);
+    if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+        Intent i = new Intent(
+            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+        i.setData(android.net.Uri.parse("package:" + getPackageName()));
+        startActivity(i);
+    }
+}
+        
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_home);
         }
