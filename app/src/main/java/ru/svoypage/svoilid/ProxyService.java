@@ -66,6 +66,9 @@ public class ProxyService extends Service {
     private long lastSlotsLog = 0;
     private long lastClaimLog = 0;
 
+    private static final String ALERTS_CHANNEL_ID = "svoi_lid_alerts";
+private static final int ALERTS_BASE_ID = 10000;
+private static final int NOTIF_POLL_MS = 60_000;
 
     @Override
     public void onCreate() {
@@ -179,6 +182,7 @@ private void scheduleRestart(long delayMs) {
         startHeartbeatLoop();
         startStateLoop();
         startJobsLoop();
+        startNotificationsLoop(); 
     }
 
     public void stopWork() {
@@ -318,6 +322,51 @@ private void scheduleRestart(long delayMs) {
             }
         }, "state").start();
     }
+
+    /** Раз в минуту тянем уведомления. Новые показываем в системном трее. */
+private void startNotificationsLoop() {
+    new Thread(() -> {
+        while (!stopFlag && token != null) {
+            try {
+                Map<String, String> p = new HashMap<>();
+                p.put("limit", "20");
+                p.put("mark_read", "0");
+
+                HttpResult r = httpPost(BASE + "notifications.php", p, token);
+                if (r.code == 200 && r.body != null) {
+                    JSONObject j = new JSONObject(r.body);
+                    if (j.optBoolean("ok", false)) {
+                        JSONArray items = j.optJSONArray("items");
+                        Session s = new Session(ProxyService.this);
+                        int lastSeen = s.getLastNotifId();
+                        int maxId = lastSeen;
+
+                        if (items != null) {
+                            for (int i = 0; i < items.length(); i++) {
+                                JSONObject n = items.getJSONObject(i);
+                                int id = n.optInt("id", 0);
+                                if (id <= lastSeen) continue;
+                                if (id > maxId) maxId = id;
+
+                                String title = n.optString("title", "СВОЙ.ЛИД");
+                                String body  = n.optString("body", "");
+                                showAlertNotification(id, title, body);
+                                addLog("🔔 Уведомление #" + id);
+                            }
+                        }
+
+                        if (maxId > lastSeen) {
+                            s.setLastNotifId(maxId);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "notifications loop: " + e.getMessage());
+            }
+            SystemClock.sleep(NOTIF_POLL_MS);
+        }
+    }, "notifications").start();
+}
 
     
     private void startJobsLoop() {
@@ -742,6 +791,19 @@ private void scheduleRestart(long delayMs) {
             NotificationManager m = getSystemService(NotificationManager.class);
             if (m != null) m.createNotificationChannel(ch);
         }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    NotificationChannel alerts = new NotificationChannel(
+        ALERTS_CHANNEL_ID,
+        "Уведомления",
+        NotificationManager.IMPORTANCE_HIGH
+    );
+    alerts.setDescription("События и сообщения от сервиса");
+    alerts.enableVibration(true);
+    alerts.setShowBadge(true);
+    NotificationManager m = getSystemService(NotificationManager.class);
+    if (m != null) m.createNotificationChannel(alerts);
+}
     }
 
     private void updateNotification() {
@@ -749,6 +811,35 @@ private void scheduleRestart(long delayMs) {
         NotificationManager m = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (m != null) m.notify(NOTIF_ID, n);
     }
+
+    /** Показывает системное уведомление. По клику открывается вкладка «Уведомления». */
+private void showAlertNotification(int notifId, String title, String body) {
+    Intent open = new Intent(this, MainActivity.class);
+    open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    open.putExtra("open_notifications", true);
+
+    PendingIntent pi = PendingIntent.getActivity(
+        this, notifId, open,
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+    Notification.Builder b;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        b = new Notification.Builder(this, ALERTS_CHANNEL_ID);
+    } else {
+        b = new Notification.Builder(this);
+    }
+
+    b.setContentTitle(title != null && !title.isEmpty() ? title : "СВОЙ.ЛИД")
+     .setContentText(body != null ? body : "")
+     .setSmallIcon(R.drawable.ic_stat_svoi_lid)
+     .setContentIntent(pi)
+     .setAutoCancel(true)
+     .setPriority(Notification.PRIORITY_HIGH)
+     .setDefaults(Notification.DEFAULT_ALL);
+
+    NotificationManager m = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+    if (m != null) m.notify(ALERTS_BASE_ID + notifId, b.build());
+}
 
     private Notification buildNotification(String text) {
         Intent open = new Intent(this, MainActivity.class);
