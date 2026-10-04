@@ -18,6 +18,15 @@ public class Session {
     private static final String KEY_API_KEY = "api_key";
     private static final String KEY_USER_NAME = "user_name";
 
+    private static final String KEY_LAST_NOTIF_ID = "last_notif_id";
+
+public int getLastNotifId() {
+    return prefs.getInt(KEY_LAST_NOTIF_ID, 0);
+}
+public void setLastNotifId(int id) {
+    prefs.edit().putInt(KEY_LAST_NOTIF_ID, id).apply();
+}
+
     private final SharedPreferences prefs;
 
     private static final String KEY_SHOULD_RUN = "should_run";
