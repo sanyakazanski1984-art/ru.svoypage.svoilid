@@ -1,6 +1,9 @@
 package ru.svoypage.svoilid;
 
+import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -14,9 +17,6 @@ import ru.svoypage.svoilid.ui.slots.SlotsFragment;
 import ru.svoypage.svoilid.ui.jobs.JobsFragment;
 import ru.svoypage.svoilid.ui.earnings.EarningsFragment;
 import ru.svoypage.svoilid.ui.more.MoreFragment;
-
-import android.content.Intent;
-import android.os.PowerManager;
 
 public class MainActivity extends AppCompatActivity {
 
