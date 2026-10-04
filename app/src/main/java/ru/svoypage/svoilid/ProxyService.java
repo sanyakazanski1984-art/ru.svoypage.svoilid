@@ -66,7 +66,7 @@ public class ProxyService extends Service {
     private long lastSlotsLog = 0;
     private long lastClaimLog = 0;
 
-    private static final String ALERTS_CHANNEL_ID = "svoi_lid_alerts";
+    private static final String ALERTS_CHANNEL_ID = "svoi_lid_alerts_v2";
 private static final int ALERTS_BASE_ID = 10000;
 private static final int NOTIF_POLL_MS = 60_000;
 
@@ -336,7 +336,7 @@ private void startNotificationsLoop() {
                 if (r.code == 200 && r.body != null) {
                     JSONObject j = new JSONObject(r.body);
                     if (j.optBoolean("ok", false)) {
-                        JSONArray items = j.optJSONArray("items");
+                        JSONArray items = j.optJSONArray("notifications");
                         Session s = new Session(ProxyService.this);
                         int lastSeen = s.getLastNotifId();
                         int maxId = lastSeen;
