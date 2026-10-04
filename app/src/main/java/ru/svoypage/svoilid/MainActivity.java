@@ -15,6 +15,9 @@ import ru.svoypage.svoilid.ui.jobs.JobsFragment;
 import ru.svoypage.svoilid.ui.earnings.EarningsFragment;
 import ru.svoypage.svoilid.ui.more.MoreFragment;
 
+import android.content.Intent;
+import android.os.PowerManager;
+
 public class MainActivity extends AppCompatActivity {
 
     private static final int RC_NOTIF = 1001;
