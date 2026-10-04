@@ -77,9 +77,14 @@ public class ProxyService extends Service {
 
 @Override
 public int onStartCommand(Intent intent, int flags, int startId) {
+    // ИСПРАВЛЕНО: запоминаем намерение пользователя, запускаем watchdog.
+    // Без этого система не знает, что сервис должен работать постоянно.
+    Session s = new Session(this);
+    s.setShouldRun(true);
+    WatchdogJobService.schedule(this);
+
     startForeground(NOTIF_ID, buildNotification("Подготовка…"));
     if (!isRunning) {
-        // ВАЖНО: startWork() делает HTTP-запросы, нельзя в главном потоке
         new Thread(this::startWork, "startWork").start();
     }
     return START_STICKY;
@@ -88,15 +93,56 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
-    @Override
-    public void onDestroy() {
-        stopFlag = true;
-        releaseWakeLock();
-        isRunning = false;
-        addLog("Service уничтожен");
-        super.onDestroy();
+@Override
+public void onDestroy() {
+    stopFlag = true;
+    releaseWakeLock();
+    isRunning = false;
+    addLog("Service уничтожен");
+
+    // ИСПРАВЛЕНО: если should_run=true (юзер не нажимал Стоп) —
+    // планируем перезапуск через AlarmManager. На MIUI/HyperOS это
+    // единственный способ поднять сервис обратно после убийства.
+    Session s = new Session(this);
+    if (s.isShouldRun() && s.getToken() != null && !s.getToken().isEmpty()) {
+        addLog("🔄 Планируем перезапуск через 5 сек");
+        scheduleRestart(5000);
     }
 
+    super.onDestroy();
+}
+
+@Override
+public void onTaskRemoved(Intent rootIntent) {
+    // Пользователь свайпнул приложение из "последних".
+    // Если should_run=true — планируем перезапуск через 3 сек.
+    Session s = new Session(this);
+    if (s.isShouldRun() && s.getToken() != null && !s.getToken().isEmpty()) {
+        scheduleRestart(3000);
+    }
+    super.onTaskRemoved(rootIntent);
+}
+
+private void scheduleRestart(long delayMs) {
+    try {
+        Intent i = new Intent(getApplicationContext(), AlarmReceiver.class);
+        i.setAction("ru.svoypage.svoilid.RESTART");
+        int flags = PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent pi = PendingIntent.getBroadcast(
+            getApplicationContext(), 1001, i, flags);
+
+        android.app.AlarmManager am =
+            (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+        if (am == null) return;
+
+        am.set(
+            android.app.AlarmManager.ELAPSED_REALTIME,
+            android.os.SystemClock.elapsedRealtime() + delayMs,
+            pi
+        );
+    } catch (Exception ignored) {}
+}
+    
     // =====================================================================
     //  УПРАВЛЕНИЕ
     // =====================================================================
@@ -108,8 +154,9 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         statusText = "Подключение…";
         updateNotification();
 
-        acquireWakeLock();
         requestIgnoreBatteryOptimizations();
+        acquireWakeLock();
+
 
         // Регистрируемся, если нет токена
         token = session.getToken();
@@ -135,6 +182,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     }
 
     public void stopWork() {
+          new Session(this).setShouldRun(false);
         stopFlag = true;
         isRunning = false;
         statusText = "Остановлено";
