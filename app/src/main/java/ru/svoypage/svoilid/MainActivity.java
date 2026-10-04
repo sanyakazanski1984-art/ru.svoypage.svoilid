@@ -3,10 +3,8 @@ package ru.svoypage.svoilid;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.PowerManager;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 
@@ -44,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
             else if (id == R.id.nav_jobs)     f = new JobsFragment();
             else if (id == R.id.nav_earnings) f = new EarningsFragment();
             else if (id == R.id.nav_more)     f = new MoreFragment();
+
             if (f != null) {
                 getSupportFragmentManager()
                     .beginTransaction()
@@ -52,7 +51,6 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
             return false;
-            handleIntent(getIntent());
         });
 
         // Обработка аппаратной кнопки "назад":
@@ -69,34 +67,43 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-if (Build.VERSION.SDK_INT >= 31) {
-    android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
-    if (am != null && !am.canScheduleExactAlarms()) {
-        Intent i = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-        i.setData(android.net.Uri.parse("package:" + getPackageName()));
-        startActivity(i);
-    }
-}
+        // Android 12+ — запрос разрешения на точные алярмы (для перезапуска сервиса)
+        if (Build.VERSION.SDK_INT >= 31) {
+            android.app.AlarmManager am =
+                (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null && !am.canScheduleExactAlarms()) {
+                Intent i = new Intent(
+                    android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(i);
+            }
+        }
 
+        // Android 6+ — запрос на игнорирование оптимизации батареи
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-    android.os.PowerManager pm =
-        (android.os.PowerManager) getSystemService(POWER_SERVICE);
-    if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-        Intent i = new Intent(
-            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-        i.setData(android.net.Uri.parse("package:" + getPackageName()));
-        startActivity(i);
-    }
-}
-        
+            android.os.PowerManager pm =
+                (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                Intent i = new Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(i);
+            }
+        }
+
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_home);
         }
+
+        // ИСПРАВЛЕНО: обработка интента сразу при первом открытии.
+        // Без этого клик по системному уведомлению, запускающий приложение
+        // «с нуля», не откроет вкладку «Уведомления».
+        handleIntent(getIntent());
     }
 
     private void requestRuntimePermissions() {
         java.util.List<String> need = new java.util.ArrayList<>();
-        if (android.os.Build.VERSION.SDK_INT >= 33
+        if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             need.add("android.permission.POST_NOTIFICATIONS");
@@ -107,29 +114,30 @@ if (Build.VERSION.SDK_INT >= 31) {
     }
 
     @Override
-protected void onNewIntent(Intent intent) {
-    super.onNewIntent(intent);
-    setIntent(intent);
-    handleIntent(intent);
-}
-
-private void handleIntent(Intent intent) {
-    if (intent == null) return;
-    if (!intent.getBooleanExtra("open_notifications", false)) return;
-
-    if (bottomNav != null) {
-        bottomNav.setSelectedItemId(R.id.nav_more);
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
     }
 
-    // Переходим на суб-экран «Уведомления» после того, как нижняя навигация
-    // откроет MoreFragment.
-    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-        getSupportFragmentManager()
-            .beginTransaction()
-            .replace(R.id.fragmentContainer,
-                new ru.svoypage.svoilid.ui.more.NotificationsFragment())
-            .addToBackStack(null)
-            .commit()
-    );
-}
+    /** Обрабатывает intent с extra open_notifications=true → открывает вкладку «Уведомления». */
+    private void handleIntent(Intent intent) {
+        if (intent == null) return;
+        if (!intent.getBooleanExtra("open_notifications", false)) return;
+
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.nav_more);
+        }
+
+        // Переходим на суб-экран «Уведомления» после того, как нижняя навигация
+        // откроет MoreFragment.
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+            getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragmentContainer,
+                    new ru.svoypage.svoilid.ui.more.NotificationsFragment())
+                .addToBackStack(null)
+                .commit()
+        );
+    }
 }
