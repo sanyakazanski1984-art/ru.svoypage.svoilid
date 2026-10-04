@@ -52,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
             return false;
+            handleIntent(getIntent());
         });
 
         // Обработка аппаратной кнопки "назад":
@@ -104,4 +105,31 @@ if (Build.VERSION.SDK_INT >= 31) {
             requestPermissions(need.toArray(new String[0]), RC_NOTIF);
         }
     }
+
+    @Override
+protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    handleIntent(intent);
+}
+
+private void handleIntent(Intent intent) {
+    if (intent == null) return;
+    if (!intent.getBooleanExtra("open_notifications", false)) return;
+
+    if (bottomNav != null) {
+        bottomNav.setSelectedItemId(R.id.nav_more);
+    }
+
+    // Переходим на суб-экран «Уведомления» после того, как нижняя навигация
+    // откроет MoreFragment.
+    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+        getSupportFragmentManager()
+            .beginTransaction()
+            .replace(R.id.fragmentContainer,
+                new ru.svoypage.svoilid.ui.more.NotificationsFragment())
+            .addToBackStack(null)
+            .commit()
+    );
+}
 }
