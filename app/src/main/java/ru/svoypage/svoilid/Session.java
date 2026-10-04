@@ -20,6 +20,16 @@ public class Session {
 
     private final SharedPreferences prefs;
 
+    private static final String KEY_SHOULD_RUN = "should_run";
+
+public boolean isShouldRun() {
+    return prefs.getBoolean(KEY_SHOULD_RUN, false);
+}
+
+public void setShouldRun(boolean value) {
+    prefs.edit().putBoolean(KEY_SHOULD_RUN, value).apply();
+}
+
     public Session(Context ctx) {
         this.prefs = ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
