@@ -728,26 +728,31 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     }
 
     /** Multipart/form-data загрузка файла (для upload-сервера VK). */
-    private String uploadMultipart(String url, byte[] fileBytes, String fileName, String mime)
+     private String uploadMultipart(String url, byte[] fileBytes, String fileName, String mime)
             throws Exception {
         String boundary = "----SvoiLidB" + System.currentTimeMillis();
+        String header =
+            "--" + boundary + "\r\n" +
+            "Content-Disposition: form-data; name=\"file1\"; filename=\"" + fileName + "\"\r\n" +
+            "Content-Type: " + mime + "\r\n\r\n";
+        String footer = "\r\n--" + boundary + "--\r\n";
+
+        byte[] headerBytes = header.getBytes(StandardCharsets.UTF_8);
+        byte[] footerBytes = footer.getBytes(StandardCharsets.UTF_8);
+        int totalLength = headerBytes.length + fileBytes.length + footerBytes.length;
+
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
         conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(180_000);
         conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+        conn.setFixedLengthStreamingMode(totalLength); // <--- ВАЖНО: не chunked
 
         java.io.OutputStream os = conn.getOutputStream();
-
-        // Заголовок части
-        String header =
-            "--" + boundary + "\r\n" +
-            "Content-Disposition: form-data; name=\"file1\"; filename=\"" + fileName + "\"\r\n" +
-            "Content-Type: " + mime + "\r\n\r\n";
-        os.write(header.getBytes(StandardCharsets.UTF_8));
+        os.write(headerBytes);
         os.write(fileBytes);
-        os.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        os.write(footerBytes);
         os.flush();
         os.close();
 
