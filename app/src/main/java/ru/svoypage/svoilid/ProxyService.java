@@ -66,9 +66,6 @@ public class ProxyService extends Service {
     private long lastSlotsLog = 0;
     private long lastClaimLog = 0;
 
-    private static final String ALERTS_CHANNEL_ID = "svoi_lid_alerts_v2";
-private static final int ALERTS_BASE_ID = 10000;
-private static final int NOTIF_POLL_MS = 60_000;
 
     @Override
     public void onCreate() {
@@ -80,14 +77,9 @@ private static final int NOTIF_POLL_MS = 60_000;
 
 @Override
 public int onStartCommand(Intent intent, int flags, int startId) {
-    // ИСПРАВЛЕНО: запоминаем намерение пользователя, запускаем watchdog.
-    // Без этого система не знает, что сервис должен работать постоянно.
-    Session s = new Session(this);
-    s.setShouldRun(true);
-    WatchdogJobService.schedule(this);
-
     startForeground(NOTIF_ID, buildNotification("Подготовка…"));
     if (!isRunning) {
+        // ВАЖНО: startWork() делает HTTP-запросы, нельзя в главном потоке
         new Thread(this::startWork, "startWork").start();
     }
     return START_STICKY;
@@ -96,56 +88,15 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
-@Override
-public void onDestroy() {
-    stopFlag = true;
-    releaseWakeLock();
-    isRunning = false;
-    addLog("Service уничтожен");
-
-    // ИСПРАВЛЕНО: если should_run=true (юзер не нажимал Стоп) —
-    // планируем перезапуск через AlarmManager. На MIUI/HyperOS это
-    // единственный способ поднять сервис обратно после убийства.
-    Session s = new Session(this);
-    if (s.isShouldRun() && s.getToken() != null && !s.getToken().isEmpty()) {
-        addLog("🔄 Планируем перезапуск через 5 сек");
-        scheduleRestart(5000);
+    @Override
+    public void onDestroy() {
+        stopFlag = true;
+        releaseWakeLock();
+        isRunning = false;
+        addLog("Service уничтожен");
+        super.onDestroy();
     }
 
-    super.onDestroy();
-}
-
-@Override
-public void onTaskRemoved(Intent rootIntent) {
-    // Пользователь свайпнул приложение из "последних".
-    // Если should_run=true — планируем перезапуск через 3 сек.
-    Session s = new Session(this);
-    if (s.isShouldRun() && s.getToken() != null && !s.getToken().isEmpty()) {
-        scheduleRestart(3000);
-    }
-    super.onTaskRemoved(rootIntent);
-}
-
-private void scheduleRestart(long delayMs) {
-    try {
-        Intent i = new Intent(getApplicationContext(), AlarmReceiver.class);
-        i.setAction("ru.svoypage.svoilid.RESTART");
-        int flags = PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent pi = PendingIntent.getBroadcast(
-            getApplicationContext(), 1001, i, flags);
-
-        android.app.AlarmManager am =
-            (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
-        if (am == null) return;
-
-        am.set(
-            android.app.AlarmManager.ELAPSED_REALTIME,
-            android.os.SystemClock.elapsedRealtime() + delayMs,
-            pi
-        );
-    } catch (Exception ignored) {}
-}
-    
     // =====================================================================
     //  УПРАВЛЕНИЕ
     // =====================================================================
@@ -157,9 +108,8 @@ private void scheduleRestart(long delayMs) {
         statusText = "Подключение…";
         updateNotification();
 
-        requestIgnoreBatteryOptimizations();
         acquireWakeLock();
-
+        requestIgnoreBatteryOptimizations();
 
         // Регистрируемся, если нет токена
         token = session.getToken();
@@ -182,11 +132,9 @@ private void scheduleRestart(long delayMs) {
         startHeartbeatLoop();
         startStateLoop();
         startJobsLoop();
-        startNotificationsLoop(); 
     }
 
     public void stopWork() {
-          new Session(this).setShouldRun(false);
         stopFlag = true;
         isRunning = false;
         statusText = "Остановлено";
@@ -322,51 +270,6 @@ private void scheduleRestart(long delayMs) {
             }
         }, "state").start();
     }
-
-    /** Раз в минуту тянем уведомления. Новые показываем в системном трее. */
-private void startNotificationsLoop() {
-    new Thread(() -> {
-        while (!stopFlag && token != null) {
-            try {
-                Map<String, String> p = new HashMap<>();
-                p.put("limit", "20");
-                p.put("mark_read", "0");
-
-                HttpResult r = httpPost(BASE + "notifications.php", p, token);
-                if (r.code == 200 && r.body != null) {
-                    JSONObject j = new JSONObject(r.body);
-                    if (j.optBoolean("ok", false)) {
-                        JSONArray items = j.optJSONArray("notifications");
-                        Session s = new Session(ProxyService.this);
-                        int lastSeen = s.getLastNotifId();
-                        int maxId = lastSeen;
-
-                        if (items != null) {
-                            for (int i = 0; i < items.length(); i++) {
-                                JSONObject n = items.getJSONObject(i);
-                                int id = n.optInt("id", 0);
-                                if (id <= lastSeen) continue;
-                                if (id > maxId) maxId = id;
-
-                                String title = n.optString("title", "СВОЙ.ЛИД");
-                                String body  = n.optString("body", "");
-                                showAlertNotification(id, title, body);
-                                addLog("🔔 Уведомление #" + id);
-                            }
-                        }
-
-                        if (maxId > lastSeen) {
-                            s.setLastNotifId(maxId);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "notifications loop: " + e.getMessage());
-            }
-            SystemClock.sleep(NOTIF_POLL_MS);
-        }
-    }, "notifications").start();
-}
 
     
     private void startJobsLoop() {
@@ -585,10 +488,10 @@ private void startNotificationsLoop() {
             if (stopFlag) throw new Exception("Остановлено");
             JSONObject step = steps.getJSONObject(i);
 
-            String url    = substitute(step.optString("url", ""), vars);
+            String url    = substitute(step.optString("url", ""), vars, false);
             String method = step.optString("method", "GET");
             String body   = step.optString("body", null);
-            if (body != null && !body.isEmpty()) body = substitute(body, vars);
+            if (body != null && !body.isEmpty()) body = substitute(body, vars, true);
 
             Map<String, String> headers = new HashMap<>();
             JSONObject h = step.optJSONObject("headers");
@@ -600,7 +503,25 @@ private void startNotificationsLoop() {
                 }
             }
 
-            last = httpRaw(url, method, headers, body);
+            String stepType = step.optString("type", "http");
+
+            if ("upload".equals(stepType)) {
+                String targetUrl = substitute(step.optString("url", ""), vars, false);
+                String sourceUrl = substitute(step.optString("source_file_url", ""), vars, false);
+                String fileName  = step.optString("file_name", "photo.jpg");
+                String mime      = step.optString("mime", "image/jpeg");
+
+                if (sourceUrl.isEmpty()) throw new Exception("upload: source_file_url empty");
+                if (targetUrl.isEmpty()) throw new Exception("upload: url empty");
+
+                byte[] data = downloadBytes(sourceUrl, 120_000);
+                if (data == null || data.length == 0) throw new Exception("upload: empty file");
+
+                String uploadResp = uploadMultipart(targetUrl, data, fileName, mime);
+                last = new HttpResult(200, uploadResp);
+            } else {
+                last = httpRaw(url, method, headers, body);
+            }
 
             // Извлекаем значения для следующих шагов
             JSONObject ex = step.optJSONObject("extract");
@@ -642,11 +563,17 @@ private void startNotificationsLoop() {
     }
 
     private String substitute(String s, Map<String, String> vars) throws Exception {
+        return substitute(s, vars, false);
+    }
+
+    private String substitute(String s, Map<String, String> vars, boolean urlencodeValues) throws Exception {
         if (s == null) return null;
         for (Map.Entry<String, String> e : vars.entrySet()) {
-            s = s.replace("${" + e.getKey() + "}", e.getValue());
+            String val = urlencodeValues
+                ? java.net.URLEncoder.encode(e.getValue(), "UTF-8")
+                : e.getValue();
+            s = s.replace("${" + e.getKey() + "}", val);
         }
-        // Если осталась неразрешённая переменная — не отправляем мусор в VK.
         if (s.contains("${")) {
             throw new NoPostsException("unresolved variable in url/body: " + s.substring(0, Math.min(80, s.length())));
         }
@@ -779,6 +706,65 @@ private void startNotificationsLoop() {
         return new HttpResult(code, sb.toString());
     }
 
+    /** Скачать файл по URL в байты. */
+    private byte[] downloadBytes(String url, int timeoutMs) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod("GET");
+        conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        conn.setReadTimeout(timeoutMs);
+        int code = conn.getResponseCode();
+        if (code != 200) {
+            conn.disconnect();
+            throw new Exception("download HTTP " + code);
+        }
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        java.io.InputStream in = conn.getInputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        in.close();
+        conn.disconnect();
+        return out.toByteArray();
+    }
+
+    /** Multipart/form-data загрузка файла (для upload-сервера VK). */
+    private String uploadMultipart(String url, byte[] fileBytes, String fileName, String mime)
+            throws Exception {
+        String boundary = "----SvoiLidB" + System.currentTimeMillis();
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        conn.setReadTimeout(180_000);
+        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+        java.io.OutputStream os = conn.getOutputStream();
+
+        // Заголовок части
+        String header =
+            "--" + boundary + "\r\n" +
+            "Content-Disposition: form-data; name=\"file1\"; filename=\"" + fileName + "\"\r\n" +
+            "Content-Type: " + mime + "\r\n\r\n";
+        os.write(header.getBytes(StandardCharsets.UTF_8));
+        os.write(fileBytes);
+        os.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        os.flush();
+        os.close();
+
+        int code = conn.getResponseCode();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(
+            code >= 400 ? conn.getErrorStream() : conn.getInputStream(),
+            StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) sb.append(line);
+        reader.close();
+        conn.disconnect();
+        if (code != 200) throw new Exception("upload HTTP " + code);
+        return sb.toString();
+    }
+
+
     // =====================================================================
     //  УВЕДОМЛЕНИЕ / WAKELOCK / BATT
     // =====================================================================
@@ -791,19 +777,6 @@ private void startNotificationsLoop() {
             NotificationManager m = getSystemService(NotificationManager.class);
             if (m != null) m.createNotificationChannel(ch);
         }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-    NotificationChannel alerts = new NotificationChannel(
-        ALERTS_CHANNEL_ID,
-        "Уведомления",
-        NotificationManager.IMPORTANCE_HIGH
-    );
-    alerts.setDescription("События и сообщения от сервиса");
-    alerts.enableVibration(true);
-    alerts.setShowBadge(true);
-    NotificationManager m = getSystemService(NotificationManager.class);
-    if (m != null) m.createNotificationChannel(alerts);
-}
     }
 
     private void updateNotification() {
@@ -811,35 +784,6 @@ private void startNotificationsLoop() {
         NotificationManager m = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (m != null) m.notify(NOTIF_ID, n);
     }
-
-    /** Показывает системное уведомление. По клику открывается вкладка «Уведомления». */
-private void showAlertNotification(int notifId, String title, String body) {
-    Intent open = new Intent(this, MainActivity.class);
-    open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-    open.putExtra("open_notifications", true);
-
-    PendingIntent pi = PendingIntent.getActivity(
-        this, notifId, open,
-        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-    Notification.Builder b;
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        b = new Notification.Builder(this, ALERTS_CHANNEL_ID);
-    } else {
-        b = new Notification.Builder(this);
-    }
-
-    b.setContentTitle(title != null && !title.isEmpty() ? title : "СВОЙ.ЛИД")
-     .setContentText(body != null ? body : "")
-     .setSmallIcon(R.drawable.ic_stat_svoi_lid)
-     .setContentIntent(pi)
-     .setAutoCancel(true)
-     .setPriority(Notification.PRIORITY_HIGH)
-     .setDefaults(Notification.DEFAULT_ALL);
-
-    NotificationManager m = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-    if (m != null) m.notify(ALERTS_BASE_ID + notifId, b.build());
-}
 
     private Notification buildNotification(String text) {
         Intent open = new Intent(this, MainActivity.class);
