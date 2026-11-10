@@ -36,8 +36,8 @@ public class ProxyService extends Service {
     private static final int NOTIF_ID = 1;
 
     private static final String BASE = ApiClient.BASE;
-    private static final int HEARTBEAT_INTERVAL_MS = 10_000;
-    private static final int CLAIM_INTERVAL_MS     = 5_000;
+    private static final int HEARTBEAT_INTERVAL_MS = 60_000;
+    private static final int CLAIM_INTERVAL_MS     = 15_000;
     private static final int CONNECT_TIMEOUT_MS    = 30_000;
     private static final int READ_TIMEOUT_MS       = 60_000;
 
@@ -62,6 +62,9 @@ public class ProxyService extends Service {
     private PowerManager.WakeLock wakeLock = null;
     private Thread heartbeatThread;
     private Thread jobsThread;
+
+    private volatile String cachedSlotsJson = null;
+private long lastSlotsFetch = 0;
 
     private long lastSlotsLog = 0;
     private long lastClaimLog = 0;
@@ -266,7 +269,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 } catch (Exception e) {
                     Log.w(TAG, "state: " + e.getMessage());
                 }
-                SystemClock.sleep(15_000);
+                SystemClock.sleep(60_000);
             }
         }, "state").start();
     }
@@ -291,17 +294,22 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     /** Проходит по всем слотам этого устройства и пытается взять задание */
     private void processAllSlots() {
         try {
-            // Получаем слоты через me.php — там есть их slot_id
+ 
+        // Запрашиваем слоты не чаще, чем раз в 5 минут (300_000 мс)
+        if (cachedSlotsJson == null || (System.currentTimeMillis() - lastSlotsFetch > 300_000)) {
             HttpResult me = httpPost(BASE + "me.php", new HashMap<>(), token);
-            if (me.code != 200 || me.body == null) return;
-            JSONObject meJson = new JSONObject(me.body);
-            if (!meJson.optBoolean("ok")) return;
-
-            JSONArray slots = meJson.optJSONArray("slots");
-            if (slots == null) {
-                addLog("me: слотов нет");
-                return;
+            if (me.code == 200 && me.body != null) {
+                JSONObject meJson = new JSONObject(me.body);
+                if (meJson.optBoolean("ok")) {
+                    cachedSlotsJson = meJson.optString("slots", "[]");
+                    lastSlotsFetch = System.currentTimeMillis();
+                    State.me = meJson; // Обновляем UI
+                }
             }
+        }
+
+        if (cachedSlotsJson == null) return;
+        JSONArray slots = new JSONArray(cachedSlotsJson);
 
             int foundOccupied = 0;
             int foundFree = 0;
@@ -403,14 +411,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                           jobVars);
                 todayFailed++;
                 currentAction = "";
-                // Обновим слот в UI
-                try {
-                    HttpResult me = httpPost(BASE + "me.php", new HashMap<>(), token);
-                    if (me.code == 200 && me.body != null) {
-                        JSONObject mj = new JSONObject(me.body);
-                        if (mj.optBoolean("ok", false)) State.me = mj;
-                    }
-                } catch (Exception ignored) {}
+
                 return;
             } catch (Exception e) {
                 addLog("❌ Ошибка: " + e.getMessage());
@@ -458,24 +459,14 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             }
             currentAction = "";
 
-            // Обновляем State сразу — экраны увидят изменения
-            try {
-                HttpResult me = httpPost(BASE + "me.php", new HashMap<>(), token);
-                if (me.code == 200 && me.body != null) {
-                    JSONObject mj = new JSONObject(me.body);
-                    if (mj.optBoolean("ok", false)) {
-                        State.me = mj;
-                        State.meUpdatedAt = System.currentTimeMillis();
-                    }
-                }
-            } catch (Exception ignored) {}
-
-            updateNotification();
 
         } catch (Exception e) {
             addLog("❌ processSlot crash: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         } finally {
             busySlots.remove(slotId);
+            // ВАЖНО: Сбрасываем кэш слотов, чтобы на следующем круге (через 15 сек)
+            // телефон запросил me.php и увидел, что слот снова стал 'free'.
+            cachedSlotsJson = null; 
         }
     }
 
