@@ -36,8 +36,8 @@ public class ProxyService extends Service {
     private static final int NOTIF_ID = 1;
 
     private static final String BASE = ApiClient.BASE;
-    private static final int HEARTBEAT_INTERVAL_MS = 60_000;
-    private static final int CLAIM_INTERVAL_MS     = 15_000;
+    private static final int HEARTBEAT_INTERVAL_MS = 300_000;
+    private static final int CLAIM_INTERVAL_MS     = 60_000;
     private static final int CONNECT_TIMEOUT_MS    = 30_000;
     private static final int READ_TIMEOUT_MS       = 60_000;
 
@@ -269,7 +269,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
                 } catch (Exception e) {
                     Log.w(TAG, "state: " + e.getMessage());
                 }
-                SystemClock.sleep(60_000);
+                SystemClock.sleep(300_000);
             }
         }, "state").start();
     }
@@ -466,7 +466,6 @@ public int onStartCommand(Intent intent, int flags, int startId) {
             busySlots.remove(slotId);
             // ВАЖНО: Сбрасываем кэш слотов, чтобы на следующем круге (через 15 сек)
             // телефон запросил me.php и увидел, что слот снова стал 'free'.
-            cachedSlotsJson = null; 
         }
     }
 
